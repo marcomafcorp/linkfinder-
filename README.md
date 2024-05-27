@@ -28,10 +28,11 @@ linkfinder++ processes JavaScript files and extracts interesting links using reg
 ```bash
 pip install jsbeautifier requests
 
-```Pipenv
+or
+
 pipenv install
 pipenv shell
 
-python3 linkfinder++.py <input_js_link_or_file_or_txt_file_with_links>
-python3 linkfinder++.py https://example.com/script.js
-python3 linkfinder++.py urls.txt
+`python3 linkfinder++.py <input_js_link_or_file_or_txt_file_with_links>`
+`python3 linkfinder++.py https://example.com/script.js`
+`python3 linkfinder++.py urls.txt`
