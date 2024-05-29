@@ -15,6 +15,9 @@ linkfinder++ processes JavaScript files and extracts interesting links using reg
 
 ## Requirements
 
+- Install Eslint To Format the .js code 
+(You must have npm installed https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+  $ npm init @eslint/config@latest
 - Python 3.x
 - Required Python packages:
   - `jsbeautifier`
