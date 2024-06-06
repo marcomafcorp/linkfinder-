@@ -266,7 +266,7 @@ def extract_and_combine_js(input_file, output_file):
 
 def process_js_file(js_file, save_dir):
     basename = os.path.basename(js_file)
-    formatted_js_file = os.path.join(save_dir, f"formatted_{basename}")
+    formatted_js_file = os.path.join(save_dir, f"{basename}_formatted.js")
     
     # Step 1: Run linkfinder++
     try:
