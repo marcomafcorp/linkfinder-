@@ -1,7 +1,3 @@
-# Python 3
-# LinkFinder++
-# By Marco Figueroa @marcofigueroa on twitter
-
 import os
 import sys
 import subprocess
@@ -15,7 +11,7 @@ from urllib.parse import urlparse
 from gzip import GzipFile
 from urllib.request import Request, urlopen
 
-
+# Set BROWSER environment variable
 os.environ["BROWSER"] = "open"
 
 # Define readBytesCustom
@@ -26,7 +22,7 @@ except ImportError:
     from io import BytesIO
     readBytesCustom = BytesIO
 
-# Regex used by linkfinder++
+# Original regex used by linkfinder++
 regex_str = r"""
   (?:"|')
   (
@@ -55,7 +51,51 @@ regex_str = r"""
   (?:"|')
 """
 
+# Additional regex patterns
+_regex = {
+    'google_api': r'AIza[0-9A-Za-z-_]{35}',
+    'firebase': r'AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}',
+    'google_captcha': r'6L[0-9A-Za-z-_]{38}|^6[0-9a-zA-Z_-]{39}$',
+    'google_oauth': r'ya29\.[0-9A-Za-z\-_]+',
+    'amazon_aws_access_key_id': r'A[SK]IA[0-9A-Z]{16}',
+    'amazon_mws_auth_token': r'amzn\\.mws\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+    'amazon_aws_url': r's3\.amazonaws.com[/]+|[a-zA-Z0-9_-]*\.s3\.amazonaws.com',
+    'amazon_aws_url2': r"(" \
+                       r"[a-zA-Z0-9-\.\_]+\.s3\.amazonaws\.com" \
+                       r"|s3://[a-zA-Z0-9-\.\_]+" \
+                       r"|s3-[a-zA-Z0-9-\.\_\/]+" \
+                       r"|s3.amazonaws.com/[a-zA-Z0-9-\.\_]+" \
+                       r"|s3.console.aws.amazon.com/s3/buckets/[a-zA-Z0-9-\.\_]+)",
+    'facebook_access_token': r'EAACEdEose0cBA[0-9A-Za-z]+',
+    'authorization_basic': r'basic [a-zA-Z0-9=:_\+\/-]{5,100}',
+    'authorization_bearer': r'bearer [a-zA-Z0-9_\-\.=:_\+\/]{5,100}',
+    'authorization_api': r'api[key|_key|\s+]+[a-zA-Z0-9_\-]{5,100}',
+    'mailgun_api_key': r'key-[0-9a-zA-Z]{32}',
+    'twilio_api_key': r'SK[0-9a-fA-F]{32}',
+    'twilio_account_sid': r'AC[a-zA-Z0-9_\-]{32}',
+    'twilio_app_sid': r'AP[a-zA-Z0-9_\-]{32}',
+    'paypal_braintree_access_token': r'access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}',
+    'square_oauth_secret': r'sq0csp-[0-9A-Za-z\-_]{43}|sq0[a-z]{3}-[0-9A-Za-z\-_]{22,43}',
+    'square_access_token': r'sqOatp-[0-9A-Za-z\-_]{22}|EAAA[a-zA-Z0-9]{60}',
+    'stripe_standard_api': r'sk_live_[0-9a-zA-Z]{24}',
+    'stripe_restricted_api': r'rk_live_[0-9a-zA-Z]{24}',
+    'github_access_token': r'[a-zA-Z0-9_-]*:[a-zA-Z0-9_\-]+@github\.com*',
+    'rsa_private_key': r'-----BEGIN RSA PRIVATE KEY-----',
+    'ssh_dsa_private_key': r'-----BEGIN DSA PRIVATE KEY-----',
+    'ssh_dc_private_key': r'-----BEGIN EC PRIVATE KEY-----',
+    'pgp_private_block': r'-----BEGIN PGP PRIVATE KEY BLOCK-----',
+    'json_web_token': r'ey[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$',
+    'slack_token': r"\"api_token\":\"(xox[a-zA-Z]-[a-zA-Z0-9-]+)\"",
+    'SSH_privKey': r"([-]+BEGIN [^\s]+ PRIVATE KEY[-]+[\s]*[^-]*[-]+END [^\s]+ PRIVATE KEY[-]+)",
+    'heroku_api_key': r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+    'possible_creds': r"(?i)(" \
+                      r"password\s*[`=:\"]+\s*[^\s]+|" \
+                      r"password is\s*[`=:\"]*\s*[^\s]+|" \
+                      r"pwd\s*[`=:\"]*\s*[^\s]+|" \
+                      r"passwd\s*[`=:\"]+\s*[^\s]+)"
+}
 
+# Beautify options
 beautifier_options = jsbeautifier.default_options()
 beautifier_options.indent_size = 4
 beautifier_options.space_in_empty_paren = True
@@ -94,18 +134,22 @@ def save_js_file(url, content, save_dir):
         f.write(content)
     return js_path
 
-def parser_file(content, regex_str, mode=1):
+def parser_file(content, regex_str, _regex, mode=1):
     '''
     Parse Input
     content:    string of content to be searched
     regex_str:  string of regex (The link should be in the group(1))
+    _regex:     dictionary of additional regex patterns
     mode:       mode of parsing. Set 1 to include surrounding contexts in the result
     '''
     if mode == 1:
         # Beautify
         content = jsbeautifier.beautify(content, beautifier_options)
-    regex = re.compile(regex_str, re.VERBOSE)
-    all_matches = [(m.group(1), m.start(0), m.end(0)) for m in re.finditer(regex, content)]
+    main_regex = re.compile(regex_str, re.VERBOSE)
+    all_matches = [(m.group(), m.start(0), m.end(0)) for m in re.finditer(main_regex, content)]
+    for name, pattern in _regex.items():
+        additional_regex = re.compile(pattern, re.VERBOSE)
+        all_matches += [(m.group(), m.start(0), m.end(0)) for m in re.finditer(additional_regex, content)]
     items = getContext(all_matches, content, context_delimiter_str="\n")
     return items
 
@@ -126,11 +170,11 @@ def getContext(list_matches, content, include_delimiter=0, context_delimiter_str
         delimiter_len = len(context_delimiter_str)
         content_max_index = len(content) - 1
 
-        while content[context_start_index] != context_delimiter_str and context_start_index > 0:
-            context_start_index = context_start_index - 1
+        while context_start_index > 0 and content[context_start_index] != context_delimiter_str:
+            context_start_index -= 1
 
-        while content[context_end_index] != context_delimiter_str and context_end_index < content_max_index:
-            context_end_index = context_end_index + 1
+        while context_end_index < content_max_index and content[context_end_index] != context_delimiter_str:
+            context_end_index += 1
 
         if include_delimiter:
             context = content[context_start_index: context_end_index]
@@ -153,6 +197,7 @@ def save_interesting_js(url, endpoints, save_dir):
         for endpoint in endpoints:
             f.write(html.escape(endpoint["link"]).encode('ascii', 'ignore').decode('utf8') + '\n')
     
+    print(f"Saved interesting JS to {interesting_js_filename}")
     # Grep for 'api' and 'dev' and save to respective files
     grep_and_save(interesting_js_filename, 'api', 'api')
     grep_and_save(interesting_js_filename, 'dev', 'dev')
@@ -173,6 +218,8 @@ def grep_and_save(file_path, search_term, output_suffix):
 
         if not matches_found:
             os.remove(output_file_path)
+        else:
+            print(f"Saved {search_term} matches to {output_file_path}")
     except Exception as e:
         print(f"Error processing file {file_path} for term {search_term}: {e}")
 
@@ -226,7 +273,7 @@ def process_js_file(js_file, save_dir):
         with open(js_file, 'r', encoding='utf-8') as file:
             js_content = file.read()
 
-        endpoints = parser_file(js_content, regex_str)
+        endpoints = parser_file(js_content, regex_str, _regex)
         save_interesting_js(js_file, endpoints, save_dir)
         cli_output(endpoints)
     except Exception as e:
@@ -241,6 +288,7 @@ def process_js_file(js_file, save_dir):
         eslint_output = subprocess.run(['eslint', formatted_js_file, '--fix', '--config', eslint_config_path], capture_output=True, text=True)
         print(eslint_output.stdout)
         print(eslint_output.stderr)
+        print(f"ESLint formatted JS file saved to {formatted_js_file}")
     except Exception as e:
         print(f"Error running ESLint: {e}")
 
@@ -252,8 +300,6 @@ def read_urls_from_file(file_path):
     except Exception as e:
         print(f"Error reading URLs from file: {e}")
         return []
-    
-
 
 def main():
     if len(sys.argv) != 2:
